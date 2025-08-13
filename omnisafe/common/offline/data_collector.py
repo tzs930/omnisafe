@@ -29,7 +29,7 @@ from omnisafe.envs.core import make
 from omnisafe.envs.wrapper import ActionScale
 from omnisafe.models.actor import ActorBuilder
 from omnisafe.utils.config import Config
-
+import pickle5 as pickle
 
 @dataclass
 class OfflineAgent:
@@ -210,3 +210,101 @@ class OfflineDataCollector:
             next_obs=self._next_obs,
             done=self._done,
         )
+
+    def collect_pickle5(self, save_dir: str, save_str: str, num_episodes: int) -> None:
+            """Collect data from the registered agents.
+
+            Args:
+                save_dir (str): The directory to save the collected data.
+            """
+            # check each agent's size
+            # total_size = 0
+            # for agent in self.agents:
+            #     assert agent.size <= self._size, f'Agent {agent} size is larger than collector size.'
+            #     total_size += agent.size
+            # assert total_size == self._size, 'Sum of agent size is not equal to collector size.'
+
+            # collect data
+            ptx = 0
+            progress_bar = tqdm(total=num_episodes, desc='Collecting data...')
+            agent = self.agents[0]
+            # for agent in self.agents:
+
+            total_dicts = []
+            total_transitions = 0
+    
+            episode_rewards, episode_costs, episode_lengths = [], [], []
+            
+            for ep_idx in range(num_episodes):
+                ep_ret, ep_cost, ep_len = 0.0, 0.0, 0.0
+                
+                obs, _ = self._env.reset()
+                done = False
+
+                save_dict = {
+                    'observations': [],
+                    'actions': [],
+                    'rewards': [],
+                    'costs': [],
+                    'next_observations': [],
+                    'terminals': []
+                }
+
+                while not done:
+                    action = agent.agent_step(obs)
+                    next_obs, reward, cost, terminate, truncated, _ = self._env.step(action)
+                    done = terminate or truncated
+
+                    save_dict['observations'].append(obs.detach().numpy())
+                    save_dict['actions'].append(action.detach().numpy())
+                    save_dict['rewards'].append(reward.detach().numpy())
+                    save_dict['costs'].append(cost.detach().numpy())
+                    save_dict['next_observations'].append(next_obs.detach().numpy())
+                    save_dict['terminals'].append(done.detach().numpy())
+
+                    ep_ret += reward.item()
+                    ep_cost += cost.item()
+                    ep_len += 1
+                    total_transitions += 1
+
+                    obs = next_obs
+                
+                save_dict['observations'] = np.array(save_dict['observations'])
+                save_dict['actions'] = np.array(save_dict['actions'])
+                save_dict['rewards'] = np.array(save_dict['rewards'])
+                save_dict['costs'] = np.array(save_dict['costs'])
+                save_dict['next_observations'] = np.array(save_dict['next_observations'])
+                save_dict['terminals'] = np.array(save_dict['terminals'])
+
+                print(f'episode{ep_idx}: return={ep_ret}, cost={ep_cost}, episode_length={ep_len}')
+
+                episode_rewards.append(ep_ret)
+                episode_costs.append(ep_cost)
+                episode_lengths.append(ep_len)
+                total_dicts.append(save_dict)
+
+                progress_bar.update(ep_idx + 1)
+
+            print(f'Agent {agent} collected {total_transitions} data points.')
+            print(f'Average return: {np.mean(episode_rewards)}')
+            print(f'Average cost: {np.mean(episode_costs)}')
+            print(f'Average episode length: {np.mean(episode_lengths)}')
+            print()
+
+            # save data
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+
+            save_path = os.path.join(save_dir, f'{self._env_name}-{save_str}-n{num_episodes}.pkl')
+            with open(save_path, 'wb') as f:
+                pickle.dump(total_dicts, f)
+
+            # np.savez(
+            #     os.path.join(save_dir, f'{self._env_name}_data.npz'),
+            #     obs=self._obs,
+            #     action=self._action,
+            #     reward=self._reward,
+            #     cost=self._cost,
+            #     next_obs=self._next_obs,
+            #     done=self._done,
+            # )

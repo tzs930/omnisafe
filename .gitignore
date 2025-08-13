@@ -417,3 +417,7 @@ Sessionx.vim
 tags
 # Persistent undo
 [._]*.un~
+
+# Added in forked version 
+wandb
+data

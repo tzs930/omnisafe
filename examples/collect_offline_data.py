@@ -14,6 +14,11 @@
 # ==============================================================================
 """Example of collecting offline data with OmniSafe."""
 
+import sys
+import os
+cwd = os.getcwd()
+sys.path.append(cwd.replace('/examples', ''))
+
 from omnisafe.common.offline.data_collector import OfflineDataCollector
 
 
@@ -23,15 +28,44 @@ from omnisafe.common.offline.data_collector import OfflineDataCollector
 # where ENVID is the environment from which you want to collect data.
 # The `PATH_TO_AGENT` is the directory path containing the `torch_save`.
 
-env_name = 'SafetyAntVelocity-v1'
+policy_type_dict = {
+    'safe-expert-v0': ('PPOLag','epoch-100.pt'),
+    # 'unsafe-expert-v0': ('PPO','epoch-100.pt'),
+    # 'safe-medium-v0': ('PPOLag','epoch-30.pt'),
+    # 'unsafe-medium-v0': ('PPO','epoch-30.pt'),
+}
+env_name_list = ['SafetyPointCircle1-v0', 'SafetyPointCircle2-v0']
+
 size = 1_000_000
-agents = [
-    ('PATH_TO_AGENT', 'epoch-500.pt', 1_000_000),
-]
+path_dict = {
+    'SafetyPointCircle1-v0': {
+        'PPO': '/home/siseo/icil-data-collection/omnisafe/runs/PPO-{SafetyPointCircle1-v0}/seed-000-2025-08-07-09-34-49',
+        'PPOLag': '/home/siseo/icil-data-collection/omnisafe/runs/PPOLag-{SafetyPointCircle1-v0}/seed-000-2025-08-07-02-01-16',
+    },
+    'SafetyPointCircle2-v0': {
+        'PPO': '/home/siseo/icil-data-collection/omnisafe/runs/PPO-{SafetyPointCircle2-v0}/seed-000-2025-08-07-09-34-49',
+        'PPOLag': '/home/siseo/icil-data-collection/omnisafe/runs/PPOLag-{SafetyPointCircle2-v0}/seed-000-2025-08-08-08-45-15',
+    },
+    # 'SafetyPointCircle2-v0-PPOLag': '/home/siseo/icil-data-collection/omnisafe/runs/PPOLag-{SafetyPointCircle2-v0}/seed-000-2025-08-08-08-45-15',
+        # ('/home/siseo/icil-data-collection/omnisafe/runs/PPO-{SafetyPointCircle2-v0}/seed-000-2025-08-07-09-34-49', 'epoch-100.pt', 1_000_000),
+}
+
+# env_name = env_name_list[0]
+# agents = agents_dict[env_name]
+
+
 save_dir = './data'
 
 if __name__ == '__main__':
-    col = OfflineDataCollector(size, env_name)
-    for agent, model_name, num in agents:
-        col.register_agent(agent, model_name, num)
-    col.collect(save_dir)
+    num_episodes = 10000
+    for env_name in env_name_list:
+        for policy_type in policy_type_dict.keys():
+        # agents = agents_dict[env_name]
+            policy, iteration = policy_type_dict[policy_type]
+            env_path = path_dict[env_name][policy]
+            # agents = (env_path, iteration, size)
+
+            col = OfflineDataCollector(size, env_name)
+            agent, model_name, num = env_path, iteration, size
+            col.register_agent(agent, model_name, num)
+            col.collect_pickle5(save_dir, policy_type, num_episodes)

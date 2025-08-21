@@ -380,8 +380,9 @@ class OfflineDataCollector:
                 if not violation:
                     ep_ret_until_violation += reward
 
-                if ep_cost >= cost_threshold:
-                    break
+                # if ep_cost >= cost_threshold:
+                #     if 'unsafe' not in policy_type:
+                #         break
 
                 obs = next_obs
             

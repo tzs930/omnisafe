@@ -57,6 +57,7 @@ from omnisafe.algorithms.on_policy import (
     PolicyGradient,
     PPOEarlyTerminated,
     PPOLag,
+    PPOLagWarmup,
     PPOSaute,
     PPOSimmerPID,
     TRPOEarlyTerminated,

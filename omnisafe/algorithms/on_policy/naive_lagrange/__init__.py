@@ -18,6 +18,7 @@ from omnisafe.algorithms.on_policy.naive_lagrange.pdo import PDO
 from omnisafe.algorithms.on_policy.naive_lagrange.ppo_lag import PPOLag
 from omnisafe.algorithms.on_policy.naive_lagrange.rcpo import RCPO
 from omnisafe.algorithms.on_policy.naive_lagrange.trpo_lag import TRPOLag
+from omnisafe.algorithms.on_policy.naive_lagrange.ppo_lag_warmup import PPOLagWarmup
 
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     'PDO',
     'PPOLag',
     'TRPOLag',
+    'PPOLagWarmup',
 ]

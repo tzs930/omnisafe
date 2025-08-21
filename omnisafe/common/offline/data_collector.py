@@ -23,6 +23,7 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box
 from tqdm import tqdm
+import yaml
 
 from omnisafe.common.normalizer import Normalizer
 from omnisafe.envs.core import make
@@ -211,7 +212,7 @@ class OfflineDataCollector:
             done=self._done,
         )
 
-    def collect_pickle5(self, save_dir: str, save_str: str, num_episodes: int) -> None:
+    def collect_pickle5(self, save_dir: str, save_str: str, num_episodes: int, dataset_type: str = 'safe', cost_threshold: float = 25.0) -> None:
             """Collect data from the registered agents.
 
             Args:
@@ -308,3 +309,159 @@ class OfflineDataCollector:
             #     next_obs=self._next_obs,
             #     done=self._done,
             # )
+
+    def collect_agent_pickle5_with_stats(self, save_dir: str, policy_type: str, num_episodes: int, cost_threshold: float = 25.0) -> None:
+        """Collect data from the registered agents.
+
+        Args:
+            save_dir (str): The directory to save the collected data.
+        """
+        # check each agent's size
+        # total_size = 0
+        # for agent in self.agents:
+        #     assert agent.size <= self._size, f'Agent {agent} size is larger than collector size.'
+        #     total_size += agent.size
+        # assert total_size == self._size, 'Sum of agent size is not equal to collector size.'
+
+        # collect data
+        ptx = 0
+        # policy_type = agent_name
+        progress_bar = tqdm(total=num_episodes, desc='Collecting data...')
+
+        total_dicts = []
+        total_transitions = 0
+        # cost_threshold = 25.0
+
+        episode_rewards, episode_costs, episode_lengths, episode_ret_until_violation = [], [], [], []
+        violations = []
+        # env = safety_gym.make(env_name, render_mode=None)
+        
+        ep_idx = 0
+        while ep_idx < num_episodes:
+            ep_ret, ep_cost, ep_len, ep_ret_until_violation = 0.0, 0.0, 0.0, 0.0
+            
+            violation = False
+
+            obs, _ = self._env.reset()
+            done = False
+
+            save_dict = {
+                'observations': [],
+                'actions': [],
+                'rewards': [],
+                'costs': [],
+                'next_observations': [],
+                'terminals': []
+            }
+            agent = self.agents[0]
+
+            while not done:
+                action = agent.agent_step(obs)
+                next_obs, reward, cost, terminate, truncated, _ = self._env.step(action)
+                done = terminate or truncated
+
+                save_dict['observations'].append(obs.detach().numpy())
+                save_dict['actions'].append(action.detach().numpy())
+                save_dict['rewards'].append(reward.detach().numpy())
+                save_dict['costs'].append(cost.detach().numpy())
+                save_dict['next_observations'].append(next_obs.detach().numpy())
+                save_dict['terminals'].append(done.detach().numpy())
+
+                ep_ret += reward
+                ep_cost += cost
+                ep_len += 1
+                total_transitions += 1
+
+                if ep_cost >= cost_threshold:
+                    violation = True
+                    if 'unsafe' not in policy_type:
+                        break
+                
+                if not violation:
+                    ep_ret_until_violation += reward
+
+                if ep_cost >= cost_threshold:
+                    break
+
+                obs = next_obs
+            
+            if 'unsafe' not in policy_type:
+                if violation:
+                    print(f'episode{ep_idx}: cost violation! skipping...')
+                    continue
+
+            save_dict['observations'] = np.array(save_dict['observations'])
+            save_dict['actions'] = np.array(save_dict['actions'])
+            save_dict['rewards'] = np.array(save_dict['rewards'])
+            save_dict['costs'] = np.array(save_dict['costs'])
+            save_dict['next_observations'] = np.array(save_dict['next_observations'])
+            save_dict['terminals'] = np.array(save_dict['terminals'])
+
+            episode_ret_until_violation.append(ep_ret_until_violation)
+            violations.append(violation)
+            
+            print(f'episode{ep_idx}: return={ep_ret}, cost={ep_cost}, episode_length={ep_len}, return_until_violation={ep_ret_until_violation}, violation={violation}')
+
+            episode_rewards.append(ep_ret)
+            episode_costs.append(ep_cost)
+            episode_lengths.append(ep_len)
+            total_dicts.append(save_dict)
+
+            ep_idx += 1
+            progress_bar.update(ep_idx + 1)
+            if ep_idx >= num_episodes:
+                break
+
+        print(f'Agent {self._env_name} collected {total_transitions} data points.')
+        print(f'Average return: {np.mean(episode_rewards)}')
+        print(f'Average cost: {np.mean(episode_costs)}')
+        print(f'Average episode length: {np.mean(episode_lengths)}')
+        print(f'Average return until violation: {np.mean(episode_ret_until_violation)}')
+        print(f'Violation rate: {np.mean(violations)}')
+        print()
+
+        # Create stats dictionary for YAML output
+        stats = {
+            'env_name': str(self._env_name),
+            'num_episodes': num_episodes,
+            'total_transitions': total_transitions,
+            'average_return': float(np.mean(episode_rewards)),
+            'std_return': float(np.std(episode_rewards)),
+            'average_cost': float(np.mean(episode_costs)),
+            'std_cost': float(np.std(episode_costs)),
+            'average_episode_length': float(np.mean(episode_lengths)),
+            'std_episode_length': float(np.std(episode_lengths)),
+            'min_return': float(np.min(episode_rewards)),
+            'max_return': float(np.max(episode_rewards)),
+            'min_cost': float(np.min(episode_costs)),
+            'max_cost': float(np.max(episode_costs)),
+            'min_episode_length': float(np.min(episode_lengths)),
+            'max_episode_length': float(np.max(episode_lengths)),
+            'average_return_until_violation': float(np.mean(episode_ret_until_violation)),
+            'std_return_until_violation': float(np.std(episode_ret_until_violation)),
+            'min_return_until_violation': float(np.min(episode_ret_until_violation)),
+            'max_return_until_violation': float(np.max(episode_ret_until_violation)),
+            'violation_rate': float(np.mean(violations)),
+            'collection_timestamp': str(np.datetime64('now')),
+        }
+
+        # Ensure save directory exists
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # Save stats to YAML file
+        stats_path = os.path.join(save_dir, f'{self._env_name}-{policy_type}-stats.yaml')
+        with open(stats_path, 'w') as f:
+            yaml.dump(stats, f, default_flow_style=False, sort_keys=False)
+        
+        print(f'Statistics saved to: {stats_path}')
+
+        # save data
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        save_path = os.path.join(save_dir, f'{self._env_name}-{policy_type}-n{num_episodes}.pkl')
+        with open(save_path, 'wb') as f:
+            pickle.dump(total_dicts, f)
+                    
+

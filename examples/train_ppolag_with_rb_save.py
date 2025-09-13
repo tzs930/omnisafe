@@ -29,13 +29,13 @@ def main():
 
     custom_cfgs = get_default_kwargs_yaml(algo, env_id, algo_type)
     custom_cfgs['train_cfgs']['total_steps'] = 1000000 # total epochs = total_steps / steps_per_epoch
-    custom_cfgs['train_cfgs']['vector_env_nums'] = 5
+    custom_cfgs['train_cfgs']['vector_env_nums'] = 10
     custom_cfgs['algo_cfgs']['obs_normalize'] = True
-    custom_cfgs['algo_cfgs']['steps_per_epoch'] = 5000 
+    custom_cfgs['algo_cfgs']['steps_per_epoch'] = 10000 
     custom_cfgs['logger_cfgs']['save_model_freq'] = 100
     custom_cfgs['logger_cfgs']['use_wandb'] = True
 
-    replay_buffer_save_freq = 2
+    replay_buffer_save_freq = 10
     replay_buffer_max_trajsize = 5000
 
     # Load thresholds
@@ -133,6 +133,7 @@ def main():
                             last_value_r = last_value_r.unsqueeze(0)
                             last_value_c = last_value_c.unsqueeze(0)
                         
+                        # Log metrics and reset for both done and timeout
                         if done or time_out:
                             algo_instance._env._log_metrics(logger, idx)
                             algo_instance._env._reset_log(idx)
@@ -141,6 +142,7 @@ def main():
                             algo_instance._env._ep_cost[idx] = 0.0
                             algo_instance._env._ep_len[idx] = 0.0
                         
+                        # Finish path for both done and timeout
                         buffer.finish_path(last_value_r, last_value_c, idx)
 
         # Monkey patch the learn method to add periodic saving
@@ -170,6 +172,7 @@ def main():
                 
                 # Always accumulate replay buffer every epoch
                 try:
+                    print(f"Accumulating replay buffer at epoch {epoch}...")
                     full_trajectories = accumulate_replay_buffer(
                         full_trajectories,
                         algo_instance._buf, 
@@ -178,8 +181,11 @@ def main():
                         max_trajectories=replay_buffer_max_trajsize,
                         env=algo_instance._env,
                     )
+                    print(f"Successfully accumulated {len(full_trajectories)} trajectories")
                 except Exception as e:
                     print(f"Could not accumulate replay buffer at epoch {epoch}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Continue with existing trajectories if accumulation fails
                 
                 # Save to disk only at save_freq intervals

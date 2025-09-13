@@ -88,18 +88,6 @@ def accumulate_replay_buffer(prev_trajectories, buffer, agent, epoch, max_trajec
         print("No complete new trajectories to accumulate")
         return prev_trajectories
     
-    # Load existing trajectories if file exists
-    # existing_trajectories = prev_trajectories
-    # pkl_path = os.path.join(save_path, 'replay_buffer.pkl')
-    # if os.path.exists(pkl_path):
-    #     try:
-    #         with open(pkl_path, 'rb') as f:
-    #             existing_trajectories = pickle.load(f)
-    #         print(f"Loaded {len(existing_trajectories)} existing trajectories")
-    #     except Exception as e:
-    #         print(f"Warning: Could not load existing trajectories: {e}")
-    #         existing_trajectories = []
-    
     # Combine existing and new trajectories
     all_trajectories = prev_trajectories + new_trajectories
     print(f"Total trajectories (prev + new): {len(all_trajectories)}")
@@ -196,7 +184,7 @@ def _extract_trajectory_ids(data):
         timeout_flags = data.get('timeout', None)  # Re-enabled for trajectory separation
     else:
         terminals_flags = data.get('terminals', None) if 'terminals' in data else None
-        timeout_flags = data.get('timeout', None) if 'timeout' in data else None  # Re-enabled for trajectory separation
+        timeout_flags = data.get('timeout', None) if 'timeout' in data else None
     
     # if terminals_flags is None and timeout_flags is None:
     #     print("Warning: No 'terminals' or 'timeout' flags found, treating as single trajectory")
@@ -296,7 +284,7 @@ def _convert_to_trajectory_format(data, trajectory_ids, env=None):
                 'rewards': [],
                 'costs': [],
                 'terminals': [],
-                # 'timeouts': [],        # Added back for trajectory separation
+                'timeouts': [],        # Only used for trajectory separation, not stored in dataset
                 # 'values_r': [],        # Commented out for dataset compatibility
                 # 'values_c': [],        # Commented out for dataset compatibility
                 # 'log_probs': [],       # Commented out for dataset compatibility
@@ -304,7 +292,7 @@ def _convert_to_trajectory_format(data, trajectory_ids, env=None):
             }
         
         # Extract data for this step
-        for key in ['obs_original', 'next_obs_original', 'act', 'reward', 'cost', 'terminals']:  # Added original observations
+        for key in ['obs_original', 'next_obs_original', 'act', 'reward', 'cost', 'terminals', 'timeout']:  # Added original observations and timeout
             if key in data:
                 # Ensure we don't go beyond the available data
                 if i < len(data[key]):
@@ -314,20 +302,23 @@ def _convert_to_trajectory_format(data, trajectory_ids, env=None):
                     elif hasattr(value, 'numpy'):
                         value = value.numpy()
                     
-                    traj_key = {
-                        'obs_original': 'observations',  # Store normalized obs in normalized field
-                        'next_obs_original': 'next_observations',  # Store normalized next_obs in normalized field
-                        'act': 'actions', 
-                        'reward': 'rewards',
-                        'cost': 'costs',
-                        'terminals': 'terminals',
-                        # 'value_r': 'values_r',      # Commented out for dataset compatibility
-                        # 'value_c': 'values_c',      # Commented out for dataset compatibility
-                        # 'logp': 'log_probs',        # Commented out for dataset compatibility
-                        # 'timeout': 'timeouts'       # Commented out for dataset compatibility
-                    }[key]
-                    
-                    trajectory_data[traj_id][traj_key].append(value)
+                    # Only store data that should be in the final dataset
+                    if key in ['obs_original', 'next_obs_original', 'act', 'reward', 'cost', 'terminals', 'timeout']:
+                        traj_key = {
+                            'obs_original': 'observations',  # Store normalized obs in normalized field
+                            'next_obs_original': 'next_observations',  # Store normalized next_obs in normalized field
+                            'act': 'actions', 
+                            'reward': 'rewards',
+                            'cost': 'costs',
+                            'terminals': 'terminals',
+                            'timeout': 'timeouts',
+                            # 'value_r': 'values_r',      # Commented out for dataset compatibility
+                            # 'value_c': 'values_c',      # Commented out for dataset compatibility
+                            # 'logp': 'log_probs',        # Commented out for dataset compatibility
+                        }[key]
+                        
+                        trajectory_data[traj_id][traj_key].append(value)
+                    # timeout is used for trajectory separation but not stored in dataset
     
     # Convert to list of trajectories
     for traj_id, traj_data in trajectory_data.items():

@@ -1,0 +1,87 @@
+environments:
+  SafetyAntVelocity-v1:
+    reward_threshold: 3064.21878056757
+    min_return: -444.2933954961749
+    max_return: 3454.053466796875
+    return_range: 3898.34686229305
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyAntVelocity-v1
+  SafetyCarCircle1-v0:
+    reward_threshold: 17.88311458216436
+    min_return: -3.1328663243524892
+    max_return: 20.218223571777344
+    return_range: 23.35108989612983
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyCarCircle1-v0
+  SafetyCarCircle2-v0:
+    reward_threshold: 15.804077711633306
+    min_return: -3.4203263229979703
+    max_return: 17.940122604370117
+    return_range: 21.360448927368086
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyCarCircle2-v0
+  SafetyHalfCheetahVelocity-v1:
+    reward_threshold: 2661.940188703873
+    min_return: -577.6642750706521
+    max_return: 3021.896240234375
+    return_range: 3599.5605153050274
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyHalfCheetahVelocity-v1
+  SafetyHopperVelocity-v1:
+    reward_threshold: 1531.4119941231932
+    min_return: 3.370917794430887
+    max_return: 1701.1943359375
+    return_range: 1697.8234181430691
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyHopperVelocity-v1
+  SafetyHumanoidVelocity-v1:
+    reward_threshold: 6023.875736744329
+    min_return: 78.38920338078518
+    max_return: 6684.4853515625
+    return_range: 6606.096148181715
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyHumanoidVelocity-v1
+  SafetyPointCircle1-v0:
+    reward_threshold: 39.422193030599686
+    min_return: -6.064145286044186
+    max_return: 44.47623062133789
+    return_range: 50.54037590738208
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyPointCircle1-v0
+  SafetyPointCircle2-v0:
+    reward_threshold: 39.4280443092948
+    min_return: -4.175344565743409
+    max_return: 44.272865295410156
+    return_range: 48.448209861153565
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyPointCircle2-v0
+  SafetySwimmerVelocity-v1:
+    reward_threshold: 88.5819999133258
+    min_return: -32.80958613285516
+    max_return: 102.06995391845703
+    return_range: 134.87954005131218
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetySwimmerVelocity-v1
+  SafetyWalker2dVelocity-v1:
+    reward_threshold: 2756.0951601442634
+    min_return: -10.57476574486488
+    max_return: 3063.5029296875
+    return_range: 3074.077695432365
+    normalized_threshold: 0.9
+    cost_threshold: 25.0
+    description: Reward threshold calculated as 0.9 normalized return for SafetyWalker2dVelocity-v1
+metadata:
+  calculation_method: 0.9 normalized return based on random-v0 (min) and safe-expert-v0
+    (max)
+  normalized_formula: (return - min_return) / (max_return - min_return)
+  threshold_formula: 0.9 * (max_return - min_return) + min_return
+  total_environments: 10

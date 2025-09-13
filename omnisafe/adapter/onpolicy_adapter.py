@@ -93,12 +93,15 @@ class OnPolicyAdapter(OnlineAdapter):
 
             buffer.store(
                 obs=obs,
+                next_obs=next_obs,
                 act=act,
                 reward=reward,
                 cost=cost,
                 value_r=value_r,
                 value_c=value_c,
                 logp=logp,
+                terminals=terminated,
+                timeout=truncated,
             )
 
             obs = next_obs

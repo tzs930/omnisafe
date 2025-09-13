@@ -107,7 +107,13 @@ class OnPolicyBuffer(BaseBuffer):  # pylint: disable=too-many-instance-attribute
         self.data['adv_c'] = torch.zeros((size,), dtype=torch.float32, device=device)
         self.data['value_c'] = torch.zeros((size,), dtype=torch.float32, device=device)
         self.data['target_value_c'] = torch.zeros((size,), dtype=torch.float32, device=device)
+        self.data['terminals'] = torch.zeros((size,), dtype=torch.float32, device=device)
+        self.data['timeout'] = torch.zeros((size,), dtype=torch.float32, device=device)
         self.data['logp'] = torch.zeros((size,), dtype=torch.float32, device=device)
+        # Add original observation fields
+        self.data['obs_original'] = self.data['obs'].clone()
+        self.data['next_obs_original'] = self.data['next_obs'].clone()
+        # next_obs is already added in base buffer
 
         self._gamma: float = gamma
         self._lam: float = lam

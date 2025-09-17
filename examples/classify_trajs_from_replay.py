@@ -308,7 +308,7 @@ def calculate_trajectory_statistics(trajectories: List[Dict[str, Any]],
     violation_rate = (total_trajectories - safe_trajectories) / total_trajectories if total_trajectories > 0 else 0.0
     
     return {
-        # Basic info (similar to safe-expert-v0-stats.yaml)
+        # Basic info (similar to safe-expert-v1-stats.yaml)
         'env_name': env_name if env_name is not None else 'Unknown',
         'num_episodes': int(total_trajectories),
         'total_transitions': int(total_transitions),
@@ -423,6 +423,9 @@ def main():
     parser.add_argument('--input_file', type=str, 
                        default='datasets/SafetyPointCircle2-v0/replay-buffer-v0.pkl',
                        help='Path to input replay buffer file')
+    parser.add_argument('--class_type', type=str, default='both',
+                       choices=['both', 'safe', 'performant', 'shuffle'],
+                       help='Type of classification: both, safe, performant, shuffle')
     parser.add_argument('--output_dir', type=str, default=None,
                        help='Output directory (defaults to same directory as input file)')
     parser.add_argument('--random_seed', type=int, default=42,
@@ -449,11 +452,12 @@ def main():
     
     if env_name is None:
         print("Warning: Could not determine environment name from input file path")
-        env_name = "SafetyPointCircle2-v0"  # Default fallback
+        env_name = "SafetyPointCircle2-v1"  # Default fallback
     
     print(f"Environment: {env_name}")
     print(f"Input file: {args.input_file}")
     print(f"Output directory: {args.output_dir}")
+    print(f"Classification type: {args.class_type}")
     print(f"Random seed: {args.random_seed}")
     print("=" * 60)
     
@@ -463,85 +467,173 @@ def main():
     # Add trajectory IDs based on original order
     trajectories = add_trajectory_ids(trajectories)
     
-    cost_threshold, return_threshold = load_thresholds(env_name, args.task_info)
-    
-    print(f"Using thresholds: cost_threshold={cost_threshold}, return_threshold={return_threshold}")
-    print("=" * 60)
-    
-    # Classify trajectories
-    classified = classify_trajectories(trajectories, cost_threshold, return_threshold)
-    
-    # Split trajectories that are both safe and performant
-    both_split = split_both_trajectories(classified['both'], args.random_seed)
-    
-    # Create final sets
-    safe_indices, performant_indices, tracking_info = create_final_sets(classified, both_split, args.random_seed)
-    
-    # Shuffle each set with demos first
-    print("=" * 60)
-    print("Shuffling sets with demos first...")
-    
-    safe_shuffled = shuffle_with_demo_first(safe_indices, trajectories, cost_threshold, return_threshold, 
-                                          is_safe_set=True, random_seed=args.random_seed)
-    performant_shuffled = shuffle_with_demo_first(performant_indices, trajectories, cost_threshold, return_threshold,
-                                                is_safe_set=False, random_seed=args.random_seed)
-    
-    # Save classified sets
-    print("=" * 60)
-    print("Saving classified trajectories...")
-    
-    safe_output = os.path.join(args.output_dir, 'replay-safe-v0.pkl')
-    performant_output = os.path.join(args.output_dir, 'replay-performance-v0.pkl')
-    
-    save_trajectories(trajectories, safe_shuffled, safe_output, tracking_info)
-    save_trajectories(trajectories, performant_shuffled, performant_output, tracking_info)
-    
-    # Shuffle and save all trajectories
-    print("=" * 60)
-    print("Shuffling and saving all trajectories...")
-    
-    all_shuffled = shuffle_all_trajectories(trajectories, args.random_seed)
-    shuffled_output = os.path.join(args.output_dir, 'replay-shuffled-v0.pkl')
-    
-    with open(shuffled_output, 'wb') as f:
-        pickle.dump(all_shuffled, f)
-    
-    print(f"Saved {len(all_shuffled)} shuffled trajectories to: {shuffled_output}")
-    
-    # Calculate and save statistics for each output file
-    print("=" * 60)
-    print("Calculating and saving statistics...")
-    
-    # Calculate statistics for safe set
-    safe_trajectories = [trajectories[i] for i in safe_shuffled]
-    safe_stats = calculate_trajectory_statistics(safe_trajectories, cost_threshold, return_threshold, env_name)
-    save_statistics(safe_stats, args.output_dir, 'replay-safe-v0')
-    
-    # Calculate statistics for performant set
-    performant_trajectories = [trajectories[i] for i in performant_shuffled]
-    performant_stats = calculate_trajectory_statistics(performant_trajectories, cost_threshold, return_threshold, env_name)
-    save_statistics(performant_stats, args.output_dir, 'replay-performance-v0')
-    
-    # Calculate statistics for shuffled set
-    shuffled_stats = calculate_trajectory_statistics(all_shuffled, cost_threshold, return_threshold, env_name)
-    save_statistics(shuffled_stats, args.output_dir, 'replay-shuffled-v0')
-    
-    
-    # Print summary
-    print("=" * 60)
-    print("SUMMARY:")
-    print(f"Total trajectories processed: {len(trajectories)}")
-    print(f"Safe set size: {len(safe_shuffled)}")
-    print(f"Performant set size: {len(performant_shuffled)}")
-    print(f"Shuffled set size: {len(all_shuffled)}")
-    print(f"Output files saved in: {args.output_dir}")
-    print("  - replay-safe-v0.pkl")
-    print("  - replay-performance-v0.pkl") 
-    print("  - replay-shuffled-v0.pkl")
-    print("Statistics saved in: stats/")
-    print("  - replay-safe-v0-stats.yaml")
-    print("  - replay-performance-v0-stats.yaml")
-    print("  - replay-shuffled-v0-stats.yaml")
+    # Process based on class_type
+    if args.class_type == 'shuffle':
+        # Simply shuffle all trajectories
+        print("Shuffling all trajectories...")
+        all_shuffled = shuffle_all_trajectories(trajectories, args.random_seed)
+        shuffled_output = os.path.join(args.output_dir, 'replay-shuffled-v1.pkl')
+        
+        with open(shuffled_output, 'wb') as f:
+            pickle.dump(all_shuffled, f)
+        
+        print(f"Saved {len(all_shuffled)} shuffled trajectories to: {shuffled_output}")
+        
+        # Calculate and save statistics for shuffled set
+        cost_threshold, return_threshold = load_thresholds(env_name, args.task_info)
+        shuffled_stats = calculate_trajectory_statistics(all_shuffled, cost_threshold, return_threshold, env_name)
+        save_statistics(shuffled_stats, args.output_dir, 'replay-shuffled-v1')
+        
+        print("=" * 60)
+        print("SUMMARY:")
+        print(f"Total trajectories processed: {len(trajectories)}")
+        print(f"Shuffled set size: {len(all_shuffled)}")
+        print(f"Output files saved in: {args.output_dir}")
+        print("  - replay-shuffled-v1.pkl")
+        print("Statistics saved in: stats/")
+        print("  - replay-shuffled-v1-stats.yaml")
+        
+    else:
+        # Load thresholds for classification
+        cost_threshold, return_threshold = load_thresholds(env_name, args.task_info)
+        print(f"Using thresholds: cost_threshold={cost_threshold}, return_threshold={return_threshold}")
+        print("=" * 60)
+        
+        # Classify trajectories
+        classified = classify_trajectories(trajectories, cost_threshold, return_threshold)
+        
+        if args.class_type == 'safe':
+            # Include all safe trajectories (safe_only + both)
+            print("Creating safe trajectory set (includes all safe trajectories)...")
+            safe_indices = classified['safe_only'] + classified['both']
+            
+            # Shuffle with demo first
+            safe_shuffled = shuffle_with_demo_first(safe_indices, trajectories, cost_threshold, return_threshold, 
+                                                  is_safe_set=True, random_seed=args.random_seed)
+            
+            # Save safe set
+            safe_output = os.path.join(args.output_dir, 'replay-safe-v1.pkl')
+            save_trajectories(trajectories, safe_shuffled, safe_output)
+            
+            # Calculate and save statistics
+            safe_trajectories = [trajectories[i] for i in safe_shuffled]
+            safe_stats = calculate_trajectory_statistics(safe_trajectories, cost_threshold, return_threshold, env_name)
+            save_statistics(safe_stats, args.output_dir, 'replay-safe-v1')
+            
+            print("=" * 60)
+            print("SUMMARY:")
+            print(f"Total trajectories processed: {len(trajectories)}")
+            print(f"Safe set size: {len(safe_shuffled)}")
+            print(f"  - Safe only: {len(classified['safe_only'])}")
+            print(f"  - Both safe & performant: {len(classified['both'])}")
+            print(f"Output files saved in: {args.output_dir}")
+            print("  - replay-safe-v1.pkl")
+            print("Statistics saved in: stats/")
+            print("  - replay-safe-v1-stats.yaml")
+            
+        elif args.class_type == 'performant':
+            # Include all performant trajectories (performant_only + both)
+            print("Creating performant trajectory set (includes all performant trajectories)...")
+            performant_indices = classified['performant_only'] + classified['both']
+            
+            # Shuffle with demo first
+            performant_shuffled = shuffle_with_demo_first(performant_indices, trajectories, cost_threshold, return_threshold,
+                                                        is_safe_set=False, random_seed=args.random_seed)
+            
+            # Save performant set
+            performant_output = os.path.join(args.output_dir, 'replay-performance-v1.pkl')
+            save_trajectories(trajectories, performant_shuffled, performant_output)
+            
+            # Calculate and save statistics
+            performant_trajectories = [trajectories[i] for i in performant_shuffled]
+            performant_stats = calculate_trajectory_statistics(performant_trajectories, cost_threshold, return_threshold, env_name)
+            save_statistics(performant_stats, args.output_dir, 'replay-performance-v1')
+            
+            print("=" * 60)
+            print("SUMMARY:")
+            print(f"Total trajectories processed: {len(trajectories)}")
+            print(f"Performant set size: {len(performant_shuffled)}")
+            print(f"  - Performant only: {len(classified['performant_only'])}")
+            print(f"  - Both safe & performant: {len(classified['both'])}")
+            print(f"Output files saved in: {args.output_dir}")
+            print("  - replay-performance-v1.pkl")
+            print("Statistics saved in: stats/")
+            print("  - replay-performance-v1-stats.yaml")
+            
+        elif args.class_type == 'both':
+            # Original logic: split 'both' trajectories 50/50
+            print("Creating both safe and performant trajectory sets...")
+            
+            # Split trajectories that are both safe and performant
+            both_split = split_both_trajectories(classified['both'], args.random_seed)
+            
+            # Create final sets
+            safe_indices, performant_indices, tracking_info = create_final_sets(classified, both_split, args.random_seed)
+            
+            # Shuffle each set with demos first
+            print("=" * 60)
+            print("Shuffling sets with demos first...")
+            
+            safe_shuffled = shuffle_with_demo_first(safe_indices, trajectories, cost_threshold, return_threshold, 
+                                                  is_safe_set=True, random_seed=args.random_seed)
+            performant_shuffled = shuffle_with_demo_first(performant_indices, trajectories, cost_threshold, return_threshold,
+                                                        is_safe_set=False, random_seed=args.random_seed)
+            
+            # Save classified sets
+            print("=" * 60)
+            print("Saving classified trajectories...")
+            
+            safe_output = os.path.join(args.output_dir, 'replay-safe-v1.pkl')
+            performant_output = os.path.join(args.output_dir, 'replay-performance-v1.pkl')
+            
+            save_trajectories(trajectories, safe_shuffled, safe_output, tracking_info)
+            save_trajectories(trajectories, performant_shuffled, performant_output, tracking_info)
+            
+            # Shuffle and save all trajectories
+            print("=" * 60)
+            print("Shuffling and saving all trajectories...")
+            
+            all_shuffled = shuffle_all_trajectories(trajectories, args.random_seed)
+            shuffled_output = os.path.join(args.output_dir, 'replay-shuffled-v1.pkl')
+            
+            with open(shuffled_output, 'wb') as f:
+                pickle.dump(all_shuffled, f)
+            
+            print(f"Saved {len(all_shuffled)} shuffled trajectories to: {shuffled_output}")
+            
+            # Calculate and save statistics for each output file
+            print("=" * 60)
+            print("Calculating and saving statistics...")
+            
+            # Calculate statistics for safe set
+            safe_trajectories = [trajectories[i] for i in safe_shuffled]
+            safe_stats = calculate_trajectory_statistics(safe_trajectories, cost_threshold, return_threshold, env_name)
+            save_statistics(safe_stats, args.output_dir, 'replay-safe-v1')
+            
+            # Calculate statistics for performant set
+            performant_trajectories = [trajectories[i] for i in performant_shuffled]
+            performant_stats = calculate_trajectory_statistics(performant_trajectories, cost_threshold, return_threshold, env_name)
+            save_statistics(performant_stats, args.output_dir, 'replay-performance-v1')
+            
+            # Calculate statistics for shuffled set
+            shuffled_stats = calculate_trajectory_statistics(all_shuffled, cost_threshold, return_threshold, env_name)
+            save_statistics(shuffled_stats, args.output_dir, 'replay-shuffled-v1')
+            
+            # Print summary
+            print("=" * 60)
+            print("SUMMARY:")
+            print(f"Total trajectories processed: {len(trajectories)}")
+            print(f"Safe set size: {len(safe_shuffled)}")
+            print(f"Performant set size: {len(performant_shuffled)}")
+            print(f"Shuffled set size: {len(all_shuffled)}")
+            print(f"Output files saved in: {args.output_dir}")
+            print("  - replay-safe-v1.pkl")
+            print("  - replay-performance-v1.pkl") 
+            print("  - replay-shuffled-v1.pkl")
+            print("Statistics saved in: stats/")
+            print("  - replay-safe-v1-stats.yaml")
+            print("  - replay-performance-v1-stats.yaml")
+            print("  - replay-shuffled-v1-stats.yaml")
 
 
 if __name__ == "__main__":

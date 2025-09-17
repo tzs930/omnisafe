@@ -41,24 +41,32 @@ def calculate_reward_thresholds(datasets_dir: str = "datasets") -> Dict[str, Dic
         try:
             # Load random-v0 stats for min_return
             random_stats = load_stats(env_dir, "random-v0")
-            min_return = random_stats["min_return"]
+            min_return = random_stats["average_return"]
             
             # Load safe-expert-v0 stats for max_return
             safe_expert_stats = load_stats(env_dir, "safe-expert-v0")
-            max_return = safe_expert_stats["max_return"]
+            max_return = safe_expert_stats["average_return"]
             
             # Calculate normalized return range
             return_range = max_return - min_return
             
             # Calculate reward threshold (0.9 normalized return)
             reward_threshold = 0.9 * return_range + min_return
-            
+
+            if 'CarCircle' in env_name:
+                cost_threshold = 50.0
+            elif 'ShadowHand' in env_name:
+                cost_threshold = 40.0
+            else:
+                cost_threshold = 25.0
+
             # Store results
             thresholds[env_name] = {
                 "min_return": min_return,
                 "max_return": max_return,
                 "return_range": return_range,
                 "reward_threshold": reward_threshold,
+                "cost_threshold": cost_threshold,
                 "normalized_threshold": 0.9
             }
             
@@ -91,6 +99,7 @@ def save_task_info(thresholds: Dict[str, Dict[str, float]], output_file: str = "
             "max_return": data["max_return"],
             "return_range": data["return_range"],
             "normalized_threshold": data["normalized_threshold"],
+            "cost_threshold": data["cost_threshold"],
             "description": f"Reward threshold calculated as 0.9 normalized return for {env_name}"
         }
     
